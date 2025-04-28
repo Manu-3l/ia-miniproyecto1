@@ -1,13 +1,15 @@
-from Modelo.maze import Maze
-from Controlador.Search import SearchController
-from Vista.GUI import init_gui, draw_maze, draw_button, draw_input_box, draw_agent_position, get_cell_from_click, handle_events, get_next_maze
 import pygame
-import time
 import json
+import copy
+import time
 import tkinter as tk
 from tkinter import simpledialog
+from Modelo.maze import Maze
+from Controlador.Search import SearchController
+from Vista.GUI import init_gui, draw_ui_panel, draw_maze, draw_log_area, load_images, CELL_SIZE, MARGIN
 
-def solicitar_dimensiones():
+def main():
+    # Pedir dimensiones
     root = tk.Tk()
     root.withdraw()
     cols = simpledialog.askinteger("Dimensiones", "Número de columnas (X):", minvalue=5, maxvalue=30)
@@ -15,158 +17,163 @@ def solicitar_dimensiones():
     root.destroy()
     if not cols or not rows:
         cols, rows = 10, 10
-    return cols, rows
 
-cols, rows = solicitar_dimensiones()
+    # Cargar laberintos
+    with open("laberintos.json", "r") as f:
+        laberintos = json.load(f)
 
-with open("laberintos.json", "r") as f:
-    laberintos = json.load(f)
+    index_laberinto = 0
+    maze = Maze(laberintos[index_laberinto])
+    agente_pos = maze.start
 
-index_laberinto = 0
-maze = Maze(laberintos[index_laberinto])
-agente_pos = maze.start
+    screen = init_gui(cols, rows)
+    mouse_img, cheese_img = load_images()
+    font = pygame.font.SysFont(None, 24)
 
-screen = init_gui(maze.cols, maze.rows)
-path = []
-last_move_time = time.time()
-intervalo_queso = 10
+    # Botones
+    button_generate = pygame.Rect(30, 400, 100, 40)
+    button_start = pygame.Rect(150, 400, 100, 40)
+    button_pause = pygame.Rect(30, 460, 100, 40)
+    button_reset = pygame.Rect(150, 460, 100, 40)
+    button_strategy = pygame.Rect(90, 520, 120, 40)
 
-programa_iniciado = False
-colocando_muros = False
-posicion_actual = 0
-estrategia_actual = 'a_star'
-input_text = "10"
-goal_timer_interval = 10
-last_goal_change_time = time.time()
-input_active = False
+    buttons = [
+        ("Generar", button_generate, (70, 130, 180)),
+        ("Iniciar", button_start, (46, 204, 113)),
+        ("Pausa", button_pause, (50, 50, 50)),
+        ("Reiniciar", button_reset, (231, 76, 60)),
+        ("Técnica", button_strategy, (255, 165, 0))
+    ]
 
-BUTTON_HEIGHT = 40
-BUTTON_WIDTH = 180
-OFFSET_Y = BUTTON_HEIGHT + 10
-
-
-def main():
-    global index_laberinto, maze, agente_pos, path, last_move_time, programa_iniciado, posicion_actual, estrategia_actual, colocando_muros, input_text, goal_timer_interval, last_goal_change_time, input_active, screen
     running = True
+    programa_iniciado = False
+    pausa = False
+    path = []
+    logs = []
+    posicion_actual = 0
+    estrategia_actual = 'a_star'
+    last_move_time = time.time()
+    goal_timer_interval = 10
+    last_goal_change_time = time.time()
+
+    def get_next_maze(laberintos, index_actual):
+        nuevo_index = (index_actual + 1) % len(laberintos)
+        nuevo = laberintos[nuevo_index]
+        return nuevo, nuevo_index
 
     while running:
         screen.fill((30, 30, 30))
-        cambiar_btn = draw_button(screen, text="Random Maze", pos=(10, 5), color=(70, 130, 180))
-        estrategia_btn = draw_button(screen, text=f"Estrategia: {estrategia_actual.upper()}", pos=(210, 5), color=(255, 165, 0))
-        iniciar_btn = None
-        if not programa_iniciado:
-            iniciar_btn = draw_button(screen, text="Inicio", pos=(450, 5), color=(46, 204, 113))
 
-        input_box = draw_input_box(screen, input_text, pos=(650, 5))
+        input_values = {
+            "Ancho": cols,
+            "Alto": rows,
+            "Ratón X": agente_pos[0] if agente_pos else '-',
+            "Ratón Y": agente_pos[1] if agente_pos else '-',
+            "Queso X": maze.goal[0] if maze.goal else '-',
+            "Queso Y": maze.goal[1] if maze.goal else '-',
+            "Técnica": estrategia_actual.upper(),
+            "Velocidad": "0.5s"
+        }
 
-        draw_maze(screen, maze, agente_pos, path, estrategia_actual, offset_y=OFFSET_Y)
-        draw_agent_position(screen, agente_pos, maze.cols, offset_y=OFFSET_Y)
+        draw_ui_panel(screen, font, input_values, buttons)
+        draw_maze(screen, maze, agente_pos, maze.goal, mouse_img, cheese_img, offset_x=300)
+        draw_log_area(screen, font, logs, cols)
         pygame.display.flip()
 
         now = time.time()
-        if programa_iniciado and path and posicion_actual < len(path):
-            if now - last_move_time > 1:
+
+        # Movimiento del agente
+        if programa_iniciado and not pausa and path and posicion_actual < len(path):
+            if now - last_move_time > 0.5:  # Velocidad fija
                 agente_pos = path[posicion_actual]
                 maze.start = agente_pos
                 posicion_actual += 1
                 last_move_time = now
+                logs.append(f"Nodo actual: {agente_pos}")
 
             if posicion_actual >= len(path) or agente_pos == maze.goal:
                 programa_iniciado = False
-                colocando_muros = False
+                pausa = False
+                logs.append("Agente llegó al goal.")
 
-
-        if programa_iniciado:
-            if time.time() - last_goal_change_time >= goal_timer_interval:
-                maze.goal = maze.get_random_free_cell(exclude=[agente_pos])
-                last_goal_change_time = time.time()
-
-                controller = SearchController(maze, strategy=estrategia_actual)
-                path = controller.buscar()
-                posicion_actual = 0
-
-
-
+        # Cambio automático del goal
+        if programa_iniciado and time.time() - last_goal_change_time >= goal_timer_interval:
+            maze.goal = maze.get_random_free_cell(exclude=[agente_pos])
+            last_goal_change_time = time.time()
+            controller = SearchController(maze, strategy=estrategia_actual)
+            path = controller.buscar()
+            posicion_actual = 0
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
-                if cambiar_btn.collidepoint(mouse_pos):
-                    nuevo_grid, index_laberinto = get_next_maze(laberintos, index_laberinto, agente_pos)
-                    maze = Maze(nuevo_grid)
+
+                if button_generate.collidepoint(mouse_pos):
+                    nuevo_grid, index_laberinto = get_next_maze(laberintos, index_laberinto)
+                    maze = Maze(copy.deepcopy(nuevo_grid))
+                    agente_pos = maze.start
+                    path = []
+                    logs.append("Nuevo laberinto generado.")
+                    programa_iniciado = False
+                    pausa = False
+
+                elif button_start.collidepoint(mouse_pos):
+                    if agente_pos and maze.goal:
+                        controller = SearchController(maze, strategy=estrategia_actual)
+                        path = controller.buscar()
+                        if path:
+                            programa_iniciado = True
+                            pausa = False
+                            posicion_actual = 0
+                            logs.append("Agente iniciado.")
+
+                elif button_pause.collidepoint(mouse_pos):
+                    pausa = not pausa
+                    logs.append("Pausa activada." if pausa else "Pausa desactivada.")
+
+                elif button_reset.collidepoint(mouse_pos):
                     agente_pos = maze.start
                     path = []
                     programa_iniciado = False
+                    pausa = False
                     posicion_actual = 0
-                    screen = init_gui(maze.cols, maze.rows)
-                elif estrategia_btn.collidepoint(mouse_pos):
+                    logs.append("Agente reiniciado.")
+
+                elif button_strategy.collidepoint(mouse_pos):
                     estrategias = ['a_star', 'bfs', 'dfs', 'ucs']
                     index = estrategias.index(estrategia_actual)
                     estrategia_actual = estrategias[(index + 1) % len(estrategias)]
-                if iniciar_btn and iniciar_btn.collidepoint(mouse_pos):
-                    if agente_pos is not None and maze.goal is not None:
-                        controller = SearchController(maze, strategy=estrategia_actual)
-                        path = controller.buscar()
-                        print(f"Start: {maze.start}, Goal: {maze.goal}")
-                        print(f"Path encontrado: {path}")
-
-
-                        
-                        if path:
-                            programa_iniciado = True
-                            posicion_actual = 0
-                            colocando_muros = True
-                            last_move_time = time.time()  # reiniciar contador de movimiento
-                        else:
-                            print("No hay camino disponible. ¿Quizás estás encerrado?")
-
+                    logs.append(f"Cambio de técnica: {estrategia_actual.upper()}")
 
                 else:
-                    if input_box.collidepoint(mouse_pos):
-                        input_active = True
-                    else:
-                        input_active = False
-                    celda = get_cell_from_click(mouse_pos, maze.rows, maze.cols, offset_y=OFFSET_Y)
-                    if celda:
-                        if colocando_muros and programa_iniciado:
-                            x, y = celda
-                            if maze.grid[y][x] == 0 and (x, y) != agente_pos and (x, y) != maze.goal:
-                                maze.grid[y][x] = 1
+                    x_click, y_click = mouse_pos
+                    if x_click >= 300:
+                        col = (x_click - 300) // (CELL_SIZE + MARGIN)
+                        row = (y_click - 100) // (CELL_SIZE + MARGIN)
 
-                                controller = SearchController(maze, strategy=estrategia_actual)
-                                path = controller.buscar()
-                                posicion_actual = 0
+                        if 0 <= col < maze.cols and 0 <= row < maze.rows:
+                            if not programa_iniciado:
+                                if maze.grid[row][col] != 1 and (col, row) != maze.goal:
+                                    agente_pos = (col, row)
+                                    maze.start = agente_pos
+                                    logs.append(f"Nuevo agente en: {agente_pos}")
 
-                                if not path:
-                                    programa_iniciado = False
-                                    colocando_muros = False
+                            else:
+                                if maze.grid[row][col] == 0 and (col, row) != maze.goal and (col, row) != agente_pos:
+                                    maze.grid[row][col] = 1
+                                    logs.append(f"Muro colocado en: ({col}, {row})")
 
+                                    controller = SearchController(maze, strategy=estrategia_actual)
+                                    path = controller.buscar()
+                                    posicion_actual = 0
 
-
-                        elif not programa_iniciado:
-                            agente_pos = celda
-                            maze.start = celda
-                            path = []
-                            programa_iniciado = False
-                            colocando_muros = False
-                            posicion_actual = 0
-            elif event.type == pygame.KEYDOWN:
-                if input_active:
-                    if event.key == pygame.K_RETURN:
-                        try:
-                            goal_timer_interval = int(input_text)
-                        except:
-                            goal_timer_interval = 10
-                        input_text = ""
-                    elif event.key == pygame.K_BACKSPACE:
-                        input_text = input_text[:-1]
-                    else:
-                        if len(input_text) < 3 and event.unicode.isdigit():
-                            input_text += event.unicode
-
-        handle_events()
+                                    if not path:
+                                        programa_iniciado = False
+                                        pausa = False
+                                        logs.append("No hay camino disponible. Agente detenido.")
 
     pygame.quit()
 
