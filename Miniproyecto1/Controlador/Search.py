@@ -16,6 +16,8 @@ class SearchController:
                 return camino
         return []
 
+
+
     def _buscar_interno(self):
         start_x, start_y = self.maze.start
         agente_inicial = Agent(start_x, start_y, strategy=self.strategy)
@@ -65,6 +67,7 @@ class SearchController:
 
         return None
 
+    
     def reconstruir_camino(self, agente):
         camino = []
         while agente:

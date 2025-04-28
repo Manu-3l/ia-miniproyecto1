@@ -71,13 +71,22 @@ def main():
                 posicion_actual += 1
                 last_move_time = now
 
-            if posicion_actual >= len(path):
+            if posicion_actual >= len(path) or agente_pos == maze.goal:
                 programa_iniciado = False
                 colocando_muros = False
 
-        if time.time() - last_goal_change_time >= goal_timer_interval:
-            maze.goal = maze.get_random_free_cell(exclude=[agente_pos])
-            last_goal_change_time = time.time()
+
+        if programa_iniciado:
+            if time.time() - last_goal_change_time >= goal_timer_interval:
+                maze.goal = maze.get_random_free_cell(exclude=[agente_pos])
+                last_goal_change_time = time.time()
+
+                controller = SearchController(maze, strategy=estrategia_actual)
+                path = controller.buscar()
+                posicion_actual = 0
+
+
+
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -96,14 +105,24 @@ def main():
                     estrategias = ['a_star', 'bfs', 'dfs', 'ucs']
                     index = estrategias.index(estrategia_actual)
                     estrategia_actual = estrategias[(index + 1) % len(estrategias)]
-                elif iniciar_btn and iniciar_btn.collidepoint(mouse_pos):
-                    if agente_pos:
+                if iniciar_btn and iniciar_btn.collidepoint(mouse_pos):
+                    if agente_pos is not None and maze.goal is not None:
                         controller = SearchController(maze, strategy=estrategia_actual)
                         path = controller.buscar()
+                        print(f"Start: {maze.start}, Goal: {maze.goal}")
+                        print(f"Path encontrado: {path}")
+
+
+                        
                         if path:
                             programa_iniciado = True
                             posicion_actual = 0
                             colocando_muros = True
+                            last_move_time = time.time()  # reiniciar contador de movimiento
+                        else:
+                            print("No hay camino disponible. ¿Quizás estás encerrado?")
+
+
                 else:
                     if input_box.collidepoint(mouse_pos):
                         input_active = True
@@ -115,6 +134,17 @@ def main():
                             x, y = celda
                             if maze.grid[y][x] == 0 and (x, y) != agente_pos and (x, y) != maze.goal:
                                 maze.grid[y][x] = 1
+
+                                controller = SearchController(maze, strategy=estrategia_actual)
+                                path = controller.buscar()
+                                posicion_actual = 0
+
+                                if not path:
+                                    programa_iniciado = False
+                                    colocando_muros = False
+
+
+
                         elif not programa_iniciado:
                             agente_pos = celda
                             maze.start = celda
