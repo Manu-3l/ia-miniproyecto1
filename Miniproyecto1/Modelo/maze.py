@@ -21,15 +21,22 @@ class Maze:
                 self.grid[x][y] != 1)
 
     def get_neighbors(self, x, y):
-        directions = [(0,1), (1,0), (0,-1), (-1,0)]
-        return [(x+dx, y+dy) for dx, dy in directions if self.is_valid(x+dx, y+dy)]
+        movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Arriba, Abajo, Izquierda, Derecha
+        vecinos = []
+        for dx, dy in movimientos:
+            nuevo_x = x + dx
+            nuevo_y = y + dy
+            if 0 <= nuevo_y < self.rows and 0 <= nuevo_x < self.cols:
+                if self.grid[nuevo_y][nuevo_x] == 0:  # Solo caminos libres
+                    vecinos.append((nuevo_x, nuevo_y))
+        return vecinos
+
 
     def move_goal_randomly(self):
         if self.goal:
             x, y = self.goal
             if self.grid[x][y] == 'G':
                 self.grid[x][y] = 0
-
         while True:
             nx = random.randint(0, self.rows - 1)
             ny = random.randint(0, self.cols - 1)
@@ -37,3 +44,14 @@ class Maze:
                 self.grid[nx][ny] = 'G'
                 self.goal = (nx, ny)
                 break
+
+    def get_random_free_cell(self, exclude=[]):
+        free_cells = []
+        for row in range(self.rows):
+            for col in range(self.cols):
+                if self.grid[row][col] == 0 and (col, row) not in exclude:
+                    free_cells.append((col, row))
+        if free_cells:
+            return random.choice(free_cells)
+        else:
+            return (0, 0)

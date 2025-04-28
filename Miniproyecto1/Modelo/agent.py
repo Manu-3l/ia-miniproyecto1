@@ -20,6 +20,7 @@ class Agent:
             vecinos.append(nuevo)
         return vecinos
 
+
     def calcular_heuristica(self, pos, goal):
         if self.strategy == 'A*':
             return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])

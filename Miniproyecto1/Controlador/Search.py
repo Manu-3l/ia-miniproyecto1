@@ -8,14 +8,13 @@ class SearchController:
         self.strategy = strategy
 
     def buscar(self):
-        estrategias = ['A*', 'Amplitud', 'Profundidad']
+        estrategias = ['A*', 'Amplitud', 'Profundidad', 'CostoUniforme']
         for estrategia in estrategias:
             self.strategy = estrategia
             camino = self._buscar_interno()
             if camino:
                 return camino
         return []
-
 
     def _buscar_interno(self):
         start_x, start_y = self.maze.start
@@ -26,16 +25,25 @@ class SearchController:
             heapq.heappush(frontier, agente_inicial)
             pop = lambda: heapq.heappop(frontier)
             push = lambda a: heapq.heappush(frontier, a)
+
+        elif self.strategy == 'CostoUniforme':
+            frontier = []
+            heapq.heappush(frontier, (0, agente_inicial))
+            pop = lambda: heapq.heappop(frontier)[1]
+            push = lambda a: heapq.heappush(frontier, (a.recorrido, a))
+
         elif self.strategy == 'Amplitud':
             frontier = deque()
             frontier.append(agente_inicial)
             pop = lambda: frontier.popleft()
             push = lambda a: frontier.append(a)
+
         elif self.strategy == 'Profundidad':
             frontier = []
             frontier.append(agente_inicial)
             pop = lambda: frontier.pop()
             push = lambda a: frontier.append(a)
+
         else:
             return None
 
@@ -43,6 +51,7 @@ class SearchController:
 
         while frontier:
             actual = pop()
+
             if (actual.x, actual.y) == self.maze.goal:
                 return self.reconstruir_camino(actual)
 
