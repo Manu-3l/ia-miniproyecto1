@@ -29,18 +29,20 @@ def draw_maze(screen, maze, agente_pos, path, estrategia='a_star', offset_y=0):
             y = row * CELL_SIZE + offset_y
 
             if maze.grid[row][col] == 1:
-                color = (0, 0, 0)
+                color = (0, 0, 0)  # muro
             elif (col, row) == maze.goal:
-                color = (255, 0, 0)
+                color = (255, 0, 0)  # goal
             elif (col, row) == agente_pos:
-                color = AGENT_COLORS.get(estrategia, (0, 0, 255))
+                color = AGENT_COLORS.get(estrategia, (0, 0, 255))  # agente
             else:
-                color = (255, 255, 255)
+                color = (255, 255, 255)  # camino libre
 
             pygame.draw.rect(screen, color, (x, y, CELL_SIZE, CELL_SIZE))
 
             if (col, row) == agente_pos:
                 pygame.draw.rect(screen, (0, 255, 0), (x, y, CELL_SIZE, CELL_SIZE), 4)
+
+
 
 def draw_input_box(screen, input_text, pos=(10, 60)):
     font = pygame.font.SysFont(None, 28)

@@ -9,11 +9,13 @@ class Maze:
         self.goal = self.find_symbol('G')
 
     def find_symbol(self, symbol):
-        for i in range(self.rows):
-            for j in range(self.cols):
-                if self.grid[i][j] == symbol:
-                    return (i, j)
+        for y in range(self.rows):
+            for x in range(self.cols):
+                if self.grid[y][x] == symbol:
+                    return (x, y)  # <-- muy importante: (columna, fila)
         return None
+
+
 
     def is_valid(self, x, y):
         return (0 <= x < self.rows and
@@ -27,7 +29,7 @@ class Maze:
             nuevo_x = x + dx
             nuevo_y = y + dy
             if 0 <= nuevo_y < self.rows and 0 <= nuevo_x < self.cols:
-                if self.grid[nuevo_y][nuevo_x] == 0:  # Solo caminos libres
+                if self.grid[nuevo_y][nuevo_x] != 1:
                     vecinos.append((nuevo_x, nuevo_y))
         return vecinos
 
