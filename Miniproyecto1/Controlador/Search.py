@@ -11,10 +11,13 @@ class SearchController:
         estrategias = ['A*', 'Amplitud', 'Profundidad', 'CostoUniforme']
         for estrategia in estrategias:
             self.strategy = estrategia
-            camino = self._buscar_interno()
-            if camino:
-                return camino
-        return []
+            resultado = self._buscar_interno()
+            if resultado:
+                return resultado, estrategia  # ✅ resultado = (camino, expandidos)
+        return ([], []), None
+
+
+
 
 
 
@@ -47,25 +50,28 @@ class SearchController:
             push = lambda a: frontier.append(a)
 
         else:
-            return None
+            return []
 
         visitados = set()
 
+        nodos_expandidos = []
+
         while frontier:
             actual = pop()
-
             if (actual.x, actual.y) == self.maze.goal:
-                return self.reconstruir_camino(actual)
+                return self.reconstruir_camino(actual), nodos_expandidos
 
             if (actual.x, actual.y) in visitados:
                 continue
             visitados.add((actual.x, actual.y))
+            nodos_expandidos.append((actual.x, actual.y))
+
 
             for vecino in actual.expandir(self.maze):
                 if (vecino.x, vecino.y) not in visitados:
                     push(vecino)
 
-        return None
+        return []
 
     
     def reconstruir_camino(self, agente):

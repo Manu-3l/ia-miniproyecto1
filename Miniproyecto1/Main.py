@@ -1,15 +1,14 @@
 import pygame
 import json
-import copy
 import time
 import tkinter as tk
 from tkinter import simpledialog
 from Modelo.maze import Maze
 from Controlador.Search import SearchController
 from Vista.GUI import init_gui, draw_ui_panel, draw_maze, draw_log_area, load_images, CELL_SIZE, MARGIN
+import copy
 
 def main():
-    # Pedir dimensiones
     root = tk.Tk()
     root.withdraw()
     cols = simpledialog.askinteger("Dimensiones", "Número de columnas (X):", minvalue=5, maxvalue=30)
@@ -18,19 +17,17 @@ def main():
     if not cols or not rows:
         cols, rows = 10, 10
 
-    # Cargar laberintos
     with open("laberintos.json", "r") as f:
         laberintos = json.load(f)
 
     index_laberinto = 0
-    maze = Maze(laberintos[index_laberinto])
+    maze = Maze(copy.deepcopy(laberintos[index_laberinto]))
     agente_pos = maze.start
 
     screen = init_gui(cols, rows)
     mouse_img, cheese_img = load_images()
     font = pygame.font.SysFont(None, 24)
 
-    # Botones
     button_generate = pygame.Rect(30, 400, 100, 40)
     button_start = pygame.Rect(150, 400, 100, 40)
     button_pause = pygame.Rect(30, 460, 100, 40)
@@ -50,6 +47,7 @@ def main():
     pausa = False
     path = []
     logs = []
+    expanded_nodes = []
     posicion_actual = 0
     estrategia_actual = 'a_star'
     last_move_time = time.time()
@@ -72,8 +70,10 @@ def main():
             "Queso X": maze.goal[0] if maze.goal else '-',
             "Queso Y": maze.goal[1] if maze.goal else '-',
             "Técnica": estrategia_actual.upper(),
-            "Velocidad": "0.5s"
+            "Velocidad": "0.5s",
+
         }
+
 
         draw_ui_panel(screen, font, input_values, buttons)
         draw_maze(screen, maze, agente_pos, maze.goal, mouse_img, cheese_img, offset_x=300)
@@ -82,27 +82,38 @@ def main():
 
         now = time.time()
 
-        # Movimiento del agente
         if programa_iniciado and not pausa and path and posicion_actual < len(path):
-            if now - last_move_time > 0.5:  # Velocidad fija
+            if now - last_move_time > 0.5:
                 agente_pos = path[posicion_actual]
                 maze.start = agente_pos
                 posicion_actual += 1
                 last_move_time = now
                 logs.append(f"Nodo actual: {agente_pos}")
+                if expanded_nodes:
+                    nodos_str = ", ".join([str(n) for n in expanded_nodes[-5:]])
+                    logs.append(f"Nodos expandidos ({estrategia_actual.upper()}): {nodos_str}")
+
 
             if posicion_actual >= len(path) or agente_pos == maze.goal:
                 programa_iniciado = False
                 pausa = False
                 logs.append("Agente llegó al goal.")
 
-        # Cambio automático del goal
         if programa_iniciado and time.time() - last_goal_change_time >= goal_timer_interval:
             maze.goal = maze.get_random_free_cell(exclude=[agente_pos])
             last_goal_change_time = time.time()
             controller = SearchController(maze, strategy=estrategia_actual)
-            path = controller.buscar()
-            posicion_actual = 0
+            (resultados, estrategia_usada) = controller.buscar()
+            path, expanded_nodes = resultados
+
+            if path:
+                estrategia_actual = estrategia_usada.lower()
+                logs.append(f"Nuevo camino encontrado con: {estrategia_usada.upper()}")
+                posicion_actual = 0
+            else:
+                programa_iniciado = False
+                logs.append("No hay camino disponible con ninguna estrategia.")
+
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -116,19 +127,26 @@ def main():
                     maze = Maze(copy.deepcopy(nuevo_grid))
                     agente_pos = maze.start
                     path = []
-                    logs.append("Nuevo laberinto generado.")
+                    expanded_nodes = []
                     programa_iniciado = False
                     pausa = False
+                    logs.append("Nuevo laberinto generado.")
 
                 elif button_start.collidepoint(mouse_pos):
                     if agente_pos and maze.goal:
                         controller = SearchController(maze, strategy=estrategia_actual)
-                        path = controller.buscar()
+                        (resultados, estrategia_usada) = controller.buscar()
+                        path, expanded_nodes = resultados
+
                         if path:
-                            programa_iniciado = True
-                            pausa = False
+                            estrategia_actual = estrategia_usada.lower()
+                            logs.append(f"Nuevo camino encontrado con: {estrategia_usada.upper()}")
                             posicion_actual = 0
-                            logs.append("Agente iniciado.")
+                            programa_iniciado = True
+                        else:
+                            programa_iniciado = False
+                            logs.append("No hay camino disponible con ninguna estrategia.")
+
 
                 elif button_pause.collidepoint(mouse_pos):
                     pausa = not pausa
@@ -137,6 +155,7 @@ def main():
                 elif button_reset.collidepoint(mouse_pos):
                     agente_pos = maze.start
                     path = []
+                    expanded_nodes = []
                     programa_iniciado = False
                     pausa = False
                     posicion_actual = 0
@@ -167,13 +186,17 @@ def main():
                                     logs.append(f"Muro colocado en: ({col}, {row})")
 
                                     controller = SearchController(maze, strategy=estrategia_actual)
-                                    path = controller.buscar()
-                                    posicion_actual = 0
+                                    (resultados, estrategia_usada) = controller.buscar()
+                                    path, expanded_nodes = resultados
 
-                                    if not path:
+                                    if path:
+                                        estrategia_actual = estrategia_usada.lower()
+                                        logs.append(f"Nuevo camino encontrado con: {estrategia_usada.upper()}")
+                                        posicion_actual = 0
+                                    else:
                                         programa_iniciado = False
-                                        pausa = False
-                                        logs.append("No hay camino disponible. Agente detenido.")
+                                        logs.append("No hay camino disponible con ninguna estrategia.")
+
 
     pygame.quit()
 

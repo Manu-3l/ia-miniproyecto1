@@ -42,17 +42,17 @@ def draw_ui_panel(screen, font, input_values, buttons):
     y_offset += 40
 
     # Inputs
-    labels = ["Ancho", "Alto", "Ratón X", "Ratón Y", "Queso X", "Queso Y", "Técnica", "Velocidad"]
+    labels = ["Ancho", "Alto", "Ratón X", "Ratón Y", "Queso X", "Queso Y", "Técnica", "Velocidad", "Expandidos"]
     for label in labels:
         text = font.render(f"{label}:", True, (255, 255, 255))
         screen.blit(text, (x_offset, y_offset))
 
-        # Mostrar valor
         valor = str(input_values.get(label, "-"))
         valor_surface = font.render(valor, True, (200, 200, 200))
         screen.blit(valor_surface, (x_offset + 120, y_offset))
 
         y_offset += 30
+
 
     # Botones
     for btn_text, rect, color in buttons:
