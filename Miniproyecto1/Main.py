@@ -11,8 +11,8 @@ import copy
 def main():
     root = tk.Tk()
     root.withdraw()
-    cols = simpledialog.askinteger("Dimensiones", "Número de columnas (X):", minvalue=5, maxvalue=30)
-    rows = simpledialog.askinteger("Dimensiones", "Número de filas (Y):", minvalue=5, maxvalue=30)
+    cols = simpledialog.askinteger("Tamaño laberinto", "Número de columnas (X):", minvalue=5, maxvalue=30)
+    rows = simpledialog.askinteger("Tamaño Laberinto", "Número de filas (Y):", minvalue=5, maxvalue=30)
     root.destroy()
     if not cols or not rows:
         cols, rows = 10, 10
@@ -20,14 +20,21 @@ def main():
     with open("laberintos.json", "r") as f:
         laberintos = json.load(f)
 
+    fase_exploracion = False
+    movimiento_total = []
+    nombres_estrategias = {
+    'a_star': 'A*',
+    'Amplitud': 'AMPLITUD',
+    'Profundidad': 'PROFUNDIDAD',
+    'Costo Uniforme': 'COSTO UNIFORME'
+    }
+    inverso_estrategias = {v: k for k, v in nombres_estrategias.items()}
     index_laberinto = 0
     maze = Maze(copy.deepcopy(laberintos[index_laberinto]))
     agente_pos = maze.start
-
     screen = init_gui(cols, rows)
     mouse_img, cheese_img = load_images()
     font = pygame.font.SysFont(None, 24)
-
     button_generate = pygame.Rect(30, 400, 100, 40)
     button_start = pygame.Rect(150, 400, 100, 40)
     button_pause = pygame.Rect(30, 460, 100, 40)
@@ -50,7 +57,7 @@ def main():
     expanded_nodes = []
     posicion_actual = 0
     estrategia_actual = 'a_star'
-    last_move_time = time.time()
+    last_move = time.time()
     goal_timer_interval = 10
     last_goal_change_time = time.time()
 
@@ -69,35 +76,41 @@ def main():
             "Ratón Y": agente_pos[1] if agente_pos else '-',
             "Queso X": maze.goal[0] if maze.goal else '-',
             "Queso Y": maze.goal[1] if maze.goal else '-',
-            "Técnica": estrategia_actual.upper(),
+            "Técnica": nombres_estrategias.get(estrategia_actual, estrategia_actual.upper()),
             "Velocidad": "0.5s",
-
         }
 
 
         draw_ui_panel(screen, font, input_values, buttons)
-        draw_maze(screen, maze, agente_pos, maze.goal, mouse_img, cheese_img, offset_x=300)
+        draw_maze(screen, maze, agente_pos, maze.goal, mouse_img, cheese_img, offset_x=300, expanded_nodes=expanded_nodes, path=path)
         draw_log_area(screen, font, logs, cols)
         pygame.display.flip()
 
         now = time.time()
-
-        if programa_iniciado and not pausa and path and posicion_actual < len(path):
-            if now - last_move_time > 0.5:
-                agente_pos = path[posicion_actual]
+        if programa_iniciado and not pausa and movimiento_total and posicion_actual < len(movimiento_total):
+            if now - last_move > 0.5:
+                agente_pos = movimiento_total[posicion_actual]
                 maze.start = agente_pos
                 posicion_actual += 1
-                last_move_time = now
+                last_move = now
+
                 logs.append(f"Nodo actual: {agente_pos}")
-                if expanded_nodes:
-                    nodos_str = ", ".join([str(n) for n in expanded_nodes[-5:]])
-                    logs.append(f"Nodos expandidos ({estrategia_actual.upper()}): {nodos_str}")
+
+                if fase_exploracion and agente_pos in path:
+                    logs.append("Termino de olfatear")
+                    fase_exploracion = False
+
+                elif not fase_exploracion and agente_pos == maze.goal:
+                    programa_iniciado = False
+                    pausa = False
+                    logs.append("El ratón comió el queso")
 
 
-            if posicion_actual >= len(path) or agente_pos == maze.goal:
+
+            if posicion_actual >= len(path)+len(expanded_nodes) or (not fase_exploracion and agente_pos == maze.goal):
                 programa_iniciado = False
                 pausa = False
-                logs.append("Agente llegó al goal.")
+                logs.append("El ratón comió el queso")
 
         if programa_iniciado and time.time() - last_goal_change_time >= goal_timer_interval:
             maze.goal = maze.get_random_free_cell(exclude=[agente_pos])
@@ -108,8 +121,23 @@ def main():
 
             if path:
                 estrategia_actual = estrategia_usada.lower()
-                logs.append(f"Nuevo camino encontrado con: {estrategia_usada.upper()}")
+                logs.append(f"Nueva meta. Camino encontrado con: {estrategia_usada.upper()}")
+                movimiento_total = list(dict.fromkeys(expanded_nodes + path))
                 posicion_actual = 0
+                fase_exploracion = True
+            else:
+                logs.append("Solo callejones sin salida")
+                programa_iniciado = False
+
+
+            if path:
+                estrategia_actual = estrategia_usada.lower()
+                logs.append(f"Estrategia utilizada: {nombres_estrategias.get(estrategia_usada, estrategia_usada.upper())}")
+                movimiento_total = list(dict.fromkeys(expanded_nodes + path))
+                posicion_actual = 0
+                programa_iniciado = True
+                fase_exploracion = True  
+
             else:
                 programa_iniciado = False
                 logs.append("No hay camino disponible con ninguna estrategia.")
@@ -130,7 +158,6 @@ def main():
                     expanded_nodes = []
                     programa_iniciado = False
                     pausa = False
-                    logs.append("Nuevo laberinto generado.")
 
                 elif button_start.collidepoint(mouse_pos):
                     if agente_pos and maze.goal:
@@ -159,13 +186,18 @@ def main():
                     programa_iniciado = False
                     pausa = False
                     posicion_actual = 0
-                    logs.append("Agente reiniciado.")
+                    logs.append("Reboot")
 
                 elif button_strategy.collidepoint(mouse_pos):
-                    estrategias = ['a_star', 'bfs', 'dfs', 'ucs']
+                    estrategias = ['a_star', 'Amplitud', 'Profundidad', 'Costo Uniforme']
+                    if estrategia_actual not in estrategias:
+                        estrategia_actual = inverso_estrategias.get(estrategia_actual.upper(), 'a_star')
+
                     index = estrategias.index(estrategia_actual)
+
                     estrategia_actual = estrategias[(index + 1) % len(estrategias)]
-                    logs.append(f"Cambio de técnica: {estrategia_actual.upper()}")
+                    logs.append(f"Cambio de técnica: {nombres_estrategias[estrategia_actual]}")
+
 
                 else:
                     x_click, y_click = mouse_pos
@@ -178,7 +210,7 @@ def main():
                                 if maze.grid[row][col] != 1 and (col, row) != maze.goal:
                                     agente_pos = (col, row)
                                     maze.start = agente_pos
-                                    logs.append(f"Nuevo agente en: {agente_pos}")
+                                    logs.append(f"Ratón en: {agente_pos}")
 
                             else:
                                 if maze.grid[row][col] == 0 and (col, row) != maze.goal and (col, row) != agente_pos:

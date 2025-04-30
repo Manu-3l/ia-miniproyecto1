@@ -8,18 +8,13 @@ class SearchController:
         self.strategy = strategy
 
     def buscar(self):
-        estrategias = ['A*', 'Amplitud', 'Profundidad', 'CostoUniforme']
+        estrategias = ['A*', 'Amplitud', 'Profundidad', 'Costo Uniforme']
         for estrategia in estrategias:
             self.strategy = estrategia
             resultado = self._buscar_interno()
             if resultado:
-                return resultado, estrategia  # ✅ resultado = (camino, expandidos)
+                return resultado, estrategia  
         return ([], []), None
-
-
-
-
-
 
     def _buscar_interno(self):
         start_x, start_y = self.maze.start
@@ -31,7 +26,7 @@ class SearchController:
             pop = lambda: heapq.heappop(frontier)
             push = lambda a: heapq.heappush(frontier, a)
 
-        elif self.strategy == 'CostoUniforme':
+        elif self.strategy == 'Costo Uniforme':
             frontier = []
             heapq.heappush(frontier, (0, agente_inicial))
             pop = lambda: heapq.heappop(frontier)[1]
