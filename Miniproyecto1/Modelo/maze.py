@@ -12,7 +12,7 @@ class Maze:
         for y in range(self.rows):
             for x in range(self.cols):
                 if self.grid[y][x] == symbol:
-                    return (x, y)  # <-- muy importante: (columna, fila)
+                    return (x, y)  
         return None
 
 
@@ -23,7 +23,7 @@ class Maze:
                 self.grid[x][y] != 1)
 
     def get_neighbors(self, x, y):
-        movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Arriba, Abajo, Izquierda, Derecha
+        movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1)]  
         vecinos = []
         for dx, dy in movimientos:
             nuevo_x = x + dx
